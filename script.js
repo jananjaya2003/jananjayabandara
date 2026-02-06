@@ -4,6 +4,10 @@ let mouseX = 0, mouseY = 0;
 let windowHalfX = window.innerWidth / 2;
 let windowHalfY = window.innerHeight / 2;
 
+// ADDED: Detect if device is mobile/tablet
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+const isLowPerformance = isMobile || (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4);
+
 // Initialize Three.js Scene
 function initThreeJS() {
     const canvas = document.getElementById('bgCanvas');
@@ -25,10 +29,10 @@ function initThreeJS() {
     renderer = new THREE.WebGLRenderer({
         canvas: canvas,
         alpha: true,
-        antialias: true
+        antialias: !isMobile // CHANGED: Disable antialiasing on mobile for performance
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2)); // CHANGED: Lower pixel ratio on mobile
     
     // Create Star Field
     createStars();
@@ -36,11 +40,11 @@ function initThreeJS() {
     // Create Floating Particles
     createParticles();
     
-    // Create Ancient Glyphs
-    createGlyphs();
-    
-    // Create Floating Geometric Shapes
-    createGeometricShapes();
+    // CHANGED: Only create glyphs and shapes on desktop for performance
+    if (!isMobile) {
+        createGlyphs();
+        createGeometricShapes();
+    }
     
     // Event Listeners
     document.addEventListener('mousemove', onMouseMove);
@@ -53,7 +57,7 @@ function initThreeJS() {
 // Create Star Field
 function createStars() {
     const starGeometry = new THREE.BufferGeometry();
-    const starCount = 2000;
+    const starCount = isMobile ? 800 : 2000; // CHANGED: Fewer stars on mobile
     const positions = new Float32Array(starCount * 3);
     
     for (let i = 0; i < starCount * 3; i += 3) {
@@ -66,7 +70,7 @@ function createStars() {
     
     const starMaterial = new THREE.PointsMaterial({
         color: 0xffffff,
-        size: 1.5,
+        size: isMobile ? 1.2 : 1.5, // CHANGED: Smaller stars on mobile
         transparent: true,
         opacity: 0.8,
         blending: THREE.AdditiveBlending
@@ -79,7 +83,7 @@ function createStars() {
 // Create Floating Particles
 function createParticles() {
     const particleGeometry = new THREE.BufferGeometry();
-    const particleCount = 500;
+    const particleCount = isMobile ? 150 : 500; // CHANGED: Fewer particles on mobile
     const positions = new Float32Array(particleCount * 3);
     
     for (let i = 0; i < particleCount * 3; i += 3) {
@@ -92,7 +96,7 @@ function createParticles() {
     
     const particleMaterial = new THREE.PointsMaterial({
         color: 0x00f0ff,
-        size: 2,
+        size: isMobile ? 1.5 : 2, // CHANGED: Smaller particles on mobile
         transparent: true,
         opacity: 0.4,
         blending: THREE.AdditiveBlending
@@ -119,7 +123,9 @@ function createGlyphs() {
         wireframe: true
     });
     
-    for (let i = 0; i < 15; i++) {
+    const glyphCount = isLowPerformance ? 8 : 15; // CHANGED: Fewer glyphs on low-end devices
+    
+    for (let i = 0; i < glyphCount; i++) {
         const geometry = glyphShapes[Math.floor(Math.random() * glyphShapes.length)];
         const glyph = new THREE.Mesh(geometry, glyphMaterial.clone());
         
@@ -167,7 +173,9 @@ function createGeometricShapes() {
         wireframe: true
     });
     
-    for (let i = 0; i < 8; i++) {
+    const shapeCount = isLowPerformance ? 4 : 8; // CHANGED: Fewer shapes on low-end devices
+    
+    for (let i = 0; i < shapeCount; i++) {
         const geometry = geometries[Math.floor(Math.random() * geometries.length)];
         const mesh = new THREE.Mesh(geometry, material.clone());
         
@@ -189,8 +197,10 @@ function createGeometricShapes() {
 
 // Mouse Movement Handler
 function onMouseMove(event) {
-    mouseX = (event.clientX - windowHalfX) * 0.05;
-    mouseY = (event.clientY - windowHalfY) * 0.05;
+    // CHANGED: Reduced mouse influence on mobile
+    const influence = isMobile ? 0.02 : 0.05;
+    mouseX = (event.clientX - windowHalfX) * influence;
+    mouseY = (event.clientY - windowHalfY) * influence;
 }
 
 // Window Resize Handler
@@ -208,27 +218,30 @@ function onWindowResize() {
 function animate() {
     requestAnimationFrame(animate);
     
+    // CHANGED: Slower animations on mobile to save battery
+    const rotationSpeed = isMobile ? 0.5 : 1;
+    
     // Rotate stars slowly
     if (stars) {
-        stars.rotation.y += 0.0002;
-        stars.rotation.x += 0.0001;
+        stars.rotation.y += 0.0002 * rotationSpeed;
+        stars.rotation.x += 0.0001 * rotationSpeed;
     }
     
     // Animate particles
     if (particles) {
-        particles.rotation.y += 0.0005;
-        particles.rotation.z += 0.0003;
+        particles.rotation.y += 0.0005 * rotationSpeed;
+        particles.rotation.z += 0.0003 * rotationSpeed;
     }
     
-    // Animate glyphs
+    // Animate glyphs (only on desktop)
     if (glyphs) {
         glyphs.children.forEach(glyph => {
-            glyph.rotation.x += glyph.userData.rotationSpeed.x;
-            glyph.rotation.y += glyph.userData.rotationSpeed.y;
-            glyph.rotation.z += glyph.userData.rotationSpeed.z;
+            glyph.rotation.x += glyph.userData.rotationSpeed.x * rotationSpeed;
+            glyph.rotation.y += glyph.userData.rotationSpeed.y * rotationSpeed;
+            glyph.rotation.z += glyph.userData.rotationSpeed.z * rotationSpeed;
             
-            glyph.position.x += glyph.userData.driftSpeed.x;
-            glyph.position.y += glyph.userData.driftSpeed.y;
+            glyph.position.x += glyph.userData.driftSpeed.x * rotationSpeed;
+            glyph.position.y += glyph.userData.driftSpeed.y * rotationSpeed;
             
             // Boundary check
             if (Math.abs(glyph.position.x) > 600) glyph.userData.driftSpeed.x *= -1;
@@ -236,18 +249,19 @@ function animate() {
         });
     }
     
-    // Animate geometric shapes
+    // Animate geometric shapes (only on desktop)
     scene.children.forEach(child => {
         if (child.userData.rotationSpeed) {
-            child.rotation.x += child.userData.rotationSpeed.x;
-            child.rotation.y += child.userData.rotationSpeed.y;
-            child.rotation.z += child.userData.rotationSpeed.z;
+            child.rotation.x += child.userData.rotationSpeed.x * rotationSpeed;
+            child.rotation.y += child.userData.rotationSpeed.y * rotationSpeed;
+            child.rotation.z += child.userData.rotationSpeed.z * rotationSpeed;
         }
     });
     
-    // Camera follows mouse with smooth easing
-    camera.position.x += (mouseX - camera.position.x) * 0.02;
-    camera.position.y += (-mouseY - camera.position.y) * 0.02;
+    // CHANGED: Reduced camera movement on mobile
+    const cameraEasing = isMobile ? 0.01 : 0.02;
+    camera.position.x += (mouseX - camera.position.x) * cameraEasing;
+    camera.position.y += (-mouseY - camera.position.y) * cameraEasing;
     camera.lookAt(scene.position);
     
     // Render
@@ -257,8 +271,8 @@ function animate() {
 // Scroll Animations
 function setupScrollAnimations() {
     const observerOptions = {
-        threshold: 0.2,
-        rootMargin: '0px 0px -100px 0px'
+        threshold: isMobile ? 0.1 : 0.2, // CHANGED: Lower threshold on mobile
+        rootMargin: isMobile ? '0px 0px -50px 0px' : '0px 0px -100px 0px' // CHANGED: Less margin on mobile
     };
     
     const observer = new IntersectionObserver((entries) => {
@@ -317,6 +331,11 @@ function setupLogoNavigation() {
 
 // Parallax Effect on Scroll
 function setupParallax() {
+    // CHANGED: Disable parallax on mobile for better performance and UX
+    if (isMobile) {
+        return;
+    }
+    
     window.addEventListener('scroll', () => {
         const scrolled = window.pageYOffset;
         
@@ -336,15 +355,18 @@ function setupParallax() {
 
 // Interactive Project Cards
 function setupProjectInteractions() {
-    document.querySelectorAll('.project-card').forEach(card => {
-        card.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-10px) scale(1.02)';
+    // CHANGED: Only add hover effects on non-touch devices
+    if (!('ontouchstart' in window)) {
+        document.querySelectorAll('.project-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-10px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
         });
-        
-        card.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0) scale(1)';
-        });
-    });
+    }
 }
 
 // Loading Screen
@@ -352,7 +374,7 @@ function hideLoadingScreen() {
     setTimeout(() => {
         const loadingScreen = document.getElementById('loadingScreen');
         loadingScreen.classList.add('hidden');
-    }, 1500);
+    }, isMobile ? 1000 : 1500); // CHANGED: Faster loading on mobile
 }
 
 // Initialize Everything
@@ -374,7 +396,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const sections = document.querySelectorAll('section[id]');
     const navLinks = document.querySelectorAll('.nav-links a');
     
+    // CHANGED: Throttle scroll event on mobile
+    let scrollTimeout;
     window.addEventListener('scroll', () => {
+        if (isMobile) {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(updateActiveNav, 100);
+        } else {
+            updateActiveNav();
+        }
+    });
+    
+    function updateActiveNav() {
         let current = '';
         
         sections.forEach(section => {
@@ -391,22 +424,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.classList.add('active');
             }
         });
-    });
+    }
 });
 
 // Add touch support for mobile
 if ('ontouchstart' in window) {
+    // CHANGED: Use throttled touch events for better performance
+    let touchTimeout;
     document.addEventListener('touchmove', (e) => {
-        const touch = e.touches[0];
-        mouseX = (touch.clientX - windowHalfX) * 0.03;
-        mouseY = (touch.clientY - windowHalfY) * 0.03;
-    });
+        clearTimeout(touchTimeout);
+        touchTimeout = setTimeout(() => {
+            const touch = e.touches[0];
+            const influence = 0.02;
+            mouseX = (touch.clientX - windowHalfX) * influence;
+            mouseY = (touch.clientY - windowHalfY) * influence;
+        }, 50);
+    }, { passive: true }); // ADDED: Passive listener for better scroll performance
 }
 
-// Performance optimization: Reduce animations on low-end devices
-if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) {
-    // Reduce particle count for low-end devices
-    console.log('Optimizing for low-end device');
+// CHANGED: More aggressive optimization message
+if (isLowPerformance) {
+    console.log('🎯 Performance mode enabled for optimal mobile experience');
 }
 
 // Easter egg: Console message
